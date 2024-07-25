@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Generator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+    }
+    #output {
+        margin-top: 20px;
+    }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHvegtg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+<h2>Image Generator</h2>
+<form id="imageForm">
+    <label for="hexColor">Background Color (Hex):</label>
+    <input type="text" id="hexColor" placeholder="Enter hex color value">
+    <br>
+    <label for="logoFile">Logo File:</label>
+    <input type="file" id="logoFile" accept="image/*" required>
+    <br>
+    <button type="submit">Generate Images</button>
+</form>
+<div id="output"></div>
+
+<script>
+document.getElementById("imageForm").addEventListener("submit", function(event) {
+    event.preventDefault();
+    var hexColor = document.getElementById("hexColor").value;
+    var logoFile = document.getElementById("logoFile").files[0];
+    
+    generateImages(hexColor, logoFile);
+});
+
+function generateImages(hexColor, logoFile) {
+    var canvasSizes = [
+        { width: 2220, height: 1080, fileName: "truskin" },
+        { width: 981, height: 200, fileName: "truskin-header" },
+        { width: 254, height: 967, fileName: "truskin-left" },
+        { width: 254, height: 967, fileName: "truskin-right" },
+        { width: 300, height: 600, fileName: "halfpage" },
+        { width: 728, height: 90, fileName: "leaderboard" },
+        { width: 320, height: 50, fileName: "mobile" },
+        { width: 640, height: 960, fileName: "scrollx" },
+        { width: 300, height: 250, fileName: "mrec" }
+    ];
+
+    var zip = new JSZip();
+    var imagesGenerated = 0;
+
+    var promises = canvasSizes.map(function(size) {
+        return new Promise(function(resolve, reject) {
+            var canvas = document.createElement("canvas");
+            canvas.width = size.width;
+            canvas.height = size.height;
+            var ctx = canvas.getContext("2d");
+
+            ctx.fillStyle = hexColor || "#FFFFFF";
+            ctx.fillRect(0, 0, size.width, size.height);
+
+            // Draw logo
+            var logoImage = new Image();
+            logoImage.onload = function() {
+                var scaleFactor;
+                var logoWidth = logoImage.width;
+                var logoHeight = logoImage.height;
+                
+                if (size.width === 2220 && size.height === 1080) {
+                    scaleFactor = size.height * 0.04 / logoHeight; // Scale logo to 20% of canvas height
+                    logoWidth *= scaleFactor;
+                    logoHeight *= scaleFactor;
+                    
+                    var padding = 660; // Distance from the sides
+                    // Calculate the starting point of the logo from the center
+                    var x1 = size.width / 2 - logoWidth - padding; // Position the first logo to the left
+                    var x2 = size.width / 2 + padding; // Position the second logo to the right
+                    
+                    var y = (size.height - logoHeight) / 2;
+                    ctx.drawImage(logoImage, x1, y, logoWidth, logoHeight);
+                    ctx.drawImage(logoImage, x2, y, logoWidth, logoHeight);
+                } else {
+                    if (size.width === 728 && size.height === 90) {
+                        scaleFactor = size.width * 0.2 / logoWidth;
+                    } else if (size.width === 320 && size.height === 50) {
+                        scaleFactor = size.width * 0.2 / logoWidth;
+                    } else {
+                        scaleFactor = Math.min(size.width, size.height) * 0.7 / Math.max(logoWidth, logoHeight);
+                    }
+                    var scaledWidth = logoWidth * scaleFactor;
+                    var scaledHeight = logoHeight * scaleFactor;
+                    var x = (size.width - scaledWidth) / 2;
+                    var y = (size.height - scaledHeight) / 2;
+                    ctx.drawImage(logoImage, x, y, scaledWidth, scaledHeight);
+                }
+
+                // Convert canvas to JPEG
+                canvas.toBlob(function(blob) {
+                    zip.file(size.fileName + ".jpg", blob);
+                    imagesGenerated++;
+                    if (imagesGenerated === canvasSizes.length) {
+                        finalizeDownload();
+                    }
+                    resolve();
+                }, "image/jpeg");
+            };
+            logoImage.src = URL.createObjectURL(logoFile);
+        });
+    });
+
+    Promise.all(promises).then(function() {
+        finalizeDownload();
+    });
+
+    function finalizeDownload() {
+        if (imagesGenerated === canvasSizes.length) {
+            zip.generateAsync({ type: "blob" }).then(function(content) {
+                var url = URL.createObjectURL(content);
+                var link = document.createElement("a");
+                link.href = url;
+                link.download = "generated_images.zip";
+                link.innerHTML = "Download all images";
+                document.getElementById("output").appendChild(link);
+            });
+        }
+    }
+}
+</script>
+</body>
+</html>
